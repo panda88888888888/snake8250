@@ -341,35 +341,38 @@
             messageBox.style.display = 'block';
         }
 
-        function changeDirection(event) {
-            if (changingDirection) return;
-            changingDirection = true;
-            const keyPressed = event.keyCode;
-            const LEFT_KEY = 37;
-            const UP_KEY = 38;
-            const RIGHT_KEY = 39;
-            const DOWN_KEY = 40;
+        // --- Refactored Keyboard Input Handler ---
+        document.addEventListener('keydown', (event) => {
+            const keyPressed = event.key;
             const goingUp = dy === -gridSize;
             const goingDown = dy === gridSize;
             const goingRight = dx === gridSize;
             const goingLeft = dx === -gridSize;
-            if (keyPressed === LEFT_KEY && !goingRight) {
-                dx = -gridSize;
-                dy = 0;
+
+            if (messageBox.style.display === 'block') {
+                if (keyPressed === 'Enter') {
+                    restartButton.click();
+                }
+            } else {
+                if (changingDirection) return;
+                changingDirection = true;
+
+                if (keyPressed === 'ArrowLeft' && !goingRight) {
+                    dx = -gridSize;
+                    dy = 0;
+                } else if (keyPressed === 'ArrowUp' && !goingDown) {
+                    dx = 0;
+                    dy = -gridSize;
+                } else if (keyPressed === 'ArrowRight' && !goingLeft) {
+                    dx = gridSize;
+                    dy = 0;
+                } else if (keyPressed === 'ArrowDown' && !goingUp) {
+                    dx = 0;
+                    dy = gridSize;
+                }
             }
-            if (keyPressed === UP_KEY && !goingDown) {
-                dx = 0;
-                dy = -gridSize;
-            }
-            if (keyPressed === RIGHT_KEY && !goingLeft) {
-                dx = gridSize;
-                dy = 0;
-            }
-            if (keyPressed === DOWN_KEY && !goingUp) {
-                dx = 0;
-                dy = gridSize;
-            }
-        }
+        });
+        // --- End Refactored Keyboard Input Handler ---
 
         let touchStartX = 0;
         let touchStartY = 0;
@@ -437,14 +440,6 @@
         });
 
         restartButton.addEventListener('click', initGame);
-
-        // New keyboard event listener for the "Play Again" button
-        document.addEventListener('keydown', (event) => {
-            // Check if the message box is visible and the Enter key is pressed
-            if (messageBox.style.display === 'block' && event.key === 'Enter') {
-                restartButton.click(); // Programmatically click the button
-            }
-        });
 
         getSnakeWordsButton.addEventListener('click', async () => {
             llmResponseDiv.innerHTML = '<span class="loading-spinner"></span> Generating...';
