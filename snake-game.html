@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Snake Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #1a202c;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #2d3748;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90vw;
+        }
+        canvas {
+            background-color: #38a169;
+            border: 4px solid #4a5568;
+            border-radius: 0.5rem;
+            display: block;
+            touch-action: none;
+        }
+        #score-board {
+            color: #e2e8f0;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #e2e8f0;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            font-size: 1.5rem;
+            display: none;
+            z-index: 10;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            max-width: 80%;
+        }
+        #message-box button {
+            background-color: #4299e1;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            cursor: pointer;
+            font-size: 1rem;
+            border: none;
+            transition: background-color 0.3s ease;
+            margin-left: 0.5rem;
+            margin-right: 0.5rem;
+        }
+        #message-box button:hover {
+            background-color: #3182ce;
+        }
+        #message-box button:first-child {
+            margin-left: 0;
+        }
+        #message-box button:last-child {
+            margin-right: 0;
+        }
+        #llm-response {
+            font-size: 1rem;
+            margin-top: 1rem;
+            color: #a0aec0;
+            min-height: 20px;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4299e1;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #touch-controls {
+            display: grid;
+            grid-template-areas:
+                ". up ."
+                "left . right"
+                ". down .";
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 300px;
+            margin-top: 1rem;
+        }
+        .touch-button {
+            background-color: #63b3ed;
+            color: white;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            font-size: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .touch-button:active {
+            background-color: #4299e1;
+        }
+        #up-button { grid-area: up; }
+        #left-button { grid-area: left; }
+        #right-button { grid-area: right; }
+        #down-button { grid-area: down; }
+        @media (max-width: 600px) {
+            canvas {
+                width: 100%;
+                height: auto;
+            }
+            #game-container {
+                padding: 1rem;
+            }
+            #score-board {
+                font-size: 1rem;
+            }
+            #message-box {
+                font-size: 1.2rem;
+                padding: 1.5rem;
+            }
+            .touch-button {
+                padding: 0.75rem;
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+    <div id="game-container">
+        <div id="score-board" class="text-2xl mb-4">Score: 0</div>
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="touch-controls">
+            <div id="up-button" class="touch-button">▲</div>
+            <div></div>
+            <div id="left-button" class="touch-button">◀</div>
+            <div id="down-button" class="touch-button">▼</div>
+            <div id="right-button" class="touch-button">▶</div>
+        </div>
+    </div>
+
+    <div id="message-box">
+        <p id="game-message"></p>
+        <div id="llm-response"></div>
+        <button id="restart-button">Play Again</button>
+        <button id="get-snake-words-button">Get Snake's Last Words ✨</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreBoard = document.getElementById('score-board');
+        const messageBox = document.getElementById('message-box');
+        const gameMessage = document.getElementById('game-message');
+        const restartButton = document.getElementById('restart-button');
+        const getSnakeWordsButton = document.getElementById('get-snake-words-button');
+        const llmResponseDiv = document.getElementById('llm-response');
+
+        // Game settings
+        const gridSize = 20;
+        let tileCountX;
+        let tileCountY;
+        let snake = [];
+        let food = {};
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let gameInterval;
+        let gameSpeed = 150;
+        let changingDirection = false;
+        let gameOverReason = '';
+
+        // Touch control elements
+        const upButton = document.getElementById('up-button');
+        const downButton = document.getElementById('down-button');
+        const leftButton = document.getElementById('left-button');
+        const rightButton = document.getElementById('right-button');
+
+        // --- Core Game Functions ---
+        function setCanvasSize() {
+            const minCanvasDimension = 300;
+            const maxCanvasDimension = 400;
+            const container = document.getElementById('game-container');
+            const containerPaddingX = parseFloat(getComputedStyle(container).paddingLeft) + parseFloat(getComputedStyle(container).paddingRight);
+            const containerPaddingY = parseFloat(getComputedStyle(container).paddingTop) + parseFloat(getComputedStyle(container).paddingBottom);
+            const availableWidth = container.offsetWidth - containerPaddingX;
+            const availableHeight = window.innerHeight * 0.6;
+            let targetSize = Math.min(availableWidth, availableHeight, maxCanvasDimension);
+            targetSize = Math.max(targetSize, minCanvasDimension);
+            canvas.width = Math.floor(targetSize / gridSize) * gridSize;
+            canvas.height = Math.floor(targetSize / gridSize) * gridSize;
+            if (canvas.width < gridSize * 10) canvas.width = gridSize * 15;
+            if (canvas.height < gridSize * 10) canvas.height = gridSize * 15;
+            tileCountX = canvas.width / gridSize;
+            tileCountY = canvas.height / gridSize;
+            console.log(`Canvas Size: ${canvas.width}x${canvas.height}, Tiles: ${tileCountX}x${tileCountY}`);
+        }
+
+        function initGame() {
+            console.log("initGame called");
+            setCanvasSize();
+            snake = [
+                { x: Math.floor(tileCountX / 2) * gridSize, y: Math.floor(tileCountY / 2) * gridSize },
+                { x: (Math.floor(tileCountX / 2) - 1) * gridSize, y: Math.floor(tileCountY / 2) * gridSize },
+                { x: (Math.floor(tileCountX / 2) - 2) * gridSize, y: Math.floor(tileCountY / 2) * gridSize }
+            ];
+            console.log("Snake start position:", snake[0].x, snake[0].y);
+            dx = gridSize;
+            dy = 0;
+            score = 0;
+            scoreBoard.textContent = `Score: ${score}`;
+            messageBox.style.display = 'none';
+            llmResponseDiv.textContent = '';
+            getSnakeWordsButton.disabled = false;
+            changingDirection = false;
+            gameSpeed = 150;
+            gameOverReason = '';
+            createFood();
+            if (gameInterval) clearInterval(gameInterval);
+            setTimeout(() => {
+                gameInterval = setInterval(gameLoop, gameSpeed);
+                console.log("Game loop started.");
+            }, 100);
+        }
+
+        function createFood() {
+            food = {
+                x: Math.floor(Math.random() * tileCountX) * gridSize,
+                y: Math.floor(Math.random() * tileCountY) * gridSize
+            };
+            for (let i = 0; i < snake.length; i++) {
+                if (snake[i].x === food.x && snake[i].y === food.y) {
+                    createFood();
+                    return;
+                }
+            }
+        }
+
+        function gameLoop() {
+            changingDirection = false;
+            if (gameOver()) {
+                showMessage('Game Over!', 'red');
+                clearInterval(gameInterval);
+                return;
+            }
+            clearCanvas();
+            drawFood();
+            moveSnake();
+            drawSnake();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = '#38a169';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawSnake() {
+            for (let i = 0; i < snake.length; i++) {
+                ctx.fillStyle = (i === 0) ? '#1a202c' : '#2d3748';
+                ctx.strokeStyle = '#4a5568';
+                ctx.fillRect(snake[i].x, snake[i].y, gridSize, gridSize);
+                ctx.strokeRect(snake[i].x, snake[i].y, gridSize, gridSize);
+            }
+        }
+
+        function drawFood() {
+            ctx.fillStyle = '#e53e3e';
+            ctx.strokeStyle = '#c53030';
+            ctx.beginPath();
+            ctx.arc(food.x + gridSize / 2, food.y + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function moveSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            snake.unshift(head);
+            const didEatFood = head.x === food.x && head.y === food.y;
+            if (didEatFood) {
+                score += 10;
+                scoreBoard.textContent = `Score: ${score}`;
+                createFood();
+                if (gameSpeed > 50) {
+                    gameSpeed -= 5;
+                    clearInterval(gameInterval);
+                    gameInterval = setInterval(gameLoop, gameSpeed);
+                }
+            } else {
+                snake.pop();
+            }
+        }
+
+        function gameOver() {
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
+                    gameOverReason = 'hit itself';
+                    return true;
+                }
+            }
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x >= canvas.width;
+            const hitTopWall = snake[0].y < 0;
+            const hitBottomWall = snake[0].y >= canvas.height;
+            if (hitLeftWall || hitRightWall || hitTopWall || hitBottomWall) {
+                gameOverReason = 'hit a wall';
+                return true;
+            }
+            return false;
+        }
+
+        function showMessage(msg, color) {
+            gameMessage.textContent = msg + ` Final Score: ${score}`;
+            gameMessage.style.color = color;
+            messageBox.style.display = 'block';
+        }
+
+        function changeDirection(event) {
+            if (changingDirection) return;
+            changingDirection = true;
+            const keyPressed = event.keyCode;
+            const LEFT_KEY = 37;
+            const UP_KEY = 38;
+            const RIGHT_KEY = 39;
+            const DOWN_KEY = 40;
+            const goingUp = dy === -gridSize;
+            const goingDown = dy === gridSize;
+            const goingRight = dx === gridSize;
+            const goingLeft = dx === -gridSize;
+            if (keyPressed === LEFT_KEY && !goingRight) {
+                dx = -gridSize;
+                dy = 0;
+            }
+            if (keyPressed === UP_KEY && !goingDown) {
+                dx = 0;
+                dy = -gridSize;
+            }
+            if (keyPressed === RIGHT_KEY && !goingLeft) {
+                dx = gridSize;
+                dy = 0;
+            }
+            if (keyPressed === DOWN_KEY && !goingUp) {
+                dx = 0;
+                dy = gridSize;
+            }
+        }
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+
+        canvas.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, false);
+
+        canvas.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, false);
+
+        function handleSwipe() {
+            if (changingDirection) return;
+            changingDirection = true;
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+            const goingUp = dy === -gridSize;
+            const goingDown = dy === gridSize;
+            const goingRight = dx === gridSize;
+            const goingLeft = dx === -gridSize;
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                if (deltaX > 0 && !goingLeft) {
+                    dx = gridSize;
+                    dy = 0;
+                } else if (deltaX < 0 && !goingRight) {
+                    dx = -gridSize;
+                    dy = 0;
+                }
+            } else {
+                if (deltaY > 0 && !goingUp) {
+                    dx = 0;
+                    dy = gridSize;
+                } else if (deltaY < 0 && !goingDown) {
+                    dx = 0;
+                    dy = -gridSize;
+                }
+            }
+        }
+
+        upButton.addEventListener('click', () => {
+            if (changingDirection) return;
+            changingDirection = true;
+            if (dy !== gridSize) { dx = 0; dy = -gridSize; }
+        });
+        downButton.addEventListener('click', () => {
+            if (changingDirection) return;
+            changingDirection = true;
+            if (dy !== -gridSize) { dx = 0; dy = gridSize; }
+        });
+        leftButton.addEventListener('click', () => {
+            if (changingDirection) return;
+            changingDirection = true;
+            if (dx !== gridSize) { dx = -gridSize; dy = 0; }
+        });
+        rightButton.addEventListener('click', () => {
+            if (changingDirection) return;
+            changingDirection = true;
+            if (dx !== -gridSize) { dx = gridSize; dy = 0; }
+        });
+
+        restartButton.addEventListener('click', initGame);
+
+        // New keyboard event listener for the "Play Again" button
+        document.addEventListener('keydown', (event) => {
+            // Check if the message box is visible and the Enter key is pressed
+            if (messageBox.style.display === 'block' && event.key === 'Enter') {
+                restartButton.click(); // Programmatically click the button
+            }
+        });
+
+        getSnakeWordsButton.addEventListener('click', async () => {
+            llmResponseDiv.innerHTML = '<span class="loading-spinner"></span> Generating...';
+            getSnakeWordsButton.disabled = true;
+
+            const prompt = `The player just finished a classic Snake game. Their final score was ${score}. The game ended because the snake ${gameOverReason}. Generate a short, humorous, or reflective "last words" message from the perspective of the snake. Keep it under 50 words.`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            let retries = 0;
+            const maxRetries = 3;
+            const baseDelay = 1000;
+
+            while (retries < maxRetries) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429) {
+                            const delay = baseDelay * Math.pow(2, retries);
+                            console.warn(`Rate limit hit. Retrying in ${delay / 1000}s...`);
+                            await new Promise(res => setTimeout(res, delay));
+                            retries++;
+                            continue;
+                        } else {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                    }
+
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        llmResponseDiv.textContent = text;
+                    } else {
+                        llmResponseDiv.textContent = "Couldn't get snake's words. Try again!";
+                        console.error("Unexpected API response structure:", result);
+                    }
+                    break;
+                } catch (error) {
+                    llmResponseDiv.textContent = "Error getting snake's words. Check console.";
+                    console.error("Error calling Gemini API:", error);
+                    break;
+                }
+            }
+            if (retries === maxRetries) {
+                llmResponseDiv.textContent = "Failed to get snake's words after multiple retries.";
+            }
+            getSnakeWordsButton.disabled = false;
+        });
+
+        window.addEventListener('resize', initGame);
+        window.onload = initGame;
+    </script>
+</body>
+</html>
