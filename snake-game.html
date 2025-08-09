@@ -34,10 +34,16 @@
             display: block;
             touch-action: none;
         }
-        #score-board {
+        #game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 0 1rem;
+            margin-bottom: 1rem;
+        }
+        #score-board, #high-score-board {
             color: #e2e8f0;
             font-size: 1.25rem;
-            margin-bottom: 1rem;
             text-align: center;
         }
         #message-box {
@@ -130,15 +136,56 @@
         #left-button { grid-area: left; }
         #right-button { grid-area: right; }
         #down-button { grid-area: down; }
+        #start-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #2d3748;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            color: #e2e8f0;
+            max-width: 90vw;
+            text-align: center;
+        }
+        #start-screen h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        #start-screen label {
+            font-size: 1.25rem;
+            margin-right: 1rem;
+        }
+        #start-screen select {
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        #start-screen button {
+            background-color: #4299e1;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            margin-top: 2rem;
+            cursor: pointer;
+            font-size: 1.25rem;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+        #start-screen button:hover {
+            background-color: #3182ce;
+        }
         @media (max-width: 600px) {
-            canvas {
-                width: 100%;
-                height: auto;
-            }
             #game-container {
                 padding: 1rem;
             }
-            #score-board {
+            #score-board, #high-score-board {
                 font-size: 1rem;
             }
             #message-box {
@@ -149,12 +196,41 @@
                 padding: 0.75rem;
                 font-size: 1.2rem;
             }
+            #start-screen h1 {
+                font-size: 1.75rem;
+            }
+            #start-screen button {
+                font-size: 1rem;
+                padding: 0.75rem 1.5rem;
+            }
         }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
-    <div id="game-container">
-        <div id="score-board" class="text-2xl mb-4">Score: 0</div>
+    <div id="start-screen">
+        <h1>Retro Snake</h1>
+        <div>
+            <label for="level-select">Choose Level:</label>
+            <select id="level-select">
+                <option value="1">Level 1</option>
+                <option value="2">Level 2</option>
+                <option value="3">Level 3</option>
+                <option value="4">Level 4</option>
+                <option value="5" selected>Level 5</option>
+                <option value="6">Level 6</option>
+                <option value="7">Level 7</option>
+                <option value="8">Level 8</option>
+                <option value="9">Level 9</option>
+            </select>
+        </div>
+        <button id="start-button">Start Game</button>
+    </div>
+
+    <div id="game-container" style="display: none;">
+        <div id="game-info">
+            <div id="score-board">Score: 0</div>
+            <div id="high-score-board">High Score: 0</div>
+        </div>
         <canvas id="gameCanvas"></canvas>
 
         <div id="touch-controls">
@@ -171,17 +247,24 @@
         <div id="llm-response"></div>
         <button id="restart-button">Play Again</button>
         <button id="get-snake-words-button">Get Snake's Last Words ✨</button>
+        <a href="index.html" class="button-link">Back to Main Page</a>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreBoard = document.getElementById('score-board');
+        const highScoreBoard = document.getElementById('high-score-board');
         const messageBox = document.getElementById('message-box');
         const gameMessage = document.getElementById('game-message');
         const restartButton = document.getElementById('restart-button');
         const getSnakeWordsButton = document.getElementById('get-snake-words-button');
         const llmResponseDiv = document.getElementById('llm-response');
+
+        const startScreen = document.getElementById('start-screen');
+        const gameContainer = document.getElementById('game-container');
+        const startButton = document.getElementById('start-button');
+        const levelSelect = document.getElementById('level-select');
 
         // Game settings
         const gridSize = 20;
@@ -194,8 +277,23 @@
         let score = 0;
         let gameInterval;
         let gameSpeed = 150;
+        let scoreIncrement = 10;
         let changingDirection = false;
         let gameOverReason = '';
+        let highScore = localStorage.getItem('snakeHighScore') || 0;
+
+        // Level configuration data
+        const levels = {
+            1: { speed: 200, score: 2 },
+            2: { speed: 180, score: 3 },
+            3: { speed: 160, score: 4 },
+            4: { speed: 140, score: 5 },
+            5: { speed: 120, score: 6 },
+            6: { speed: 100, score: 7 },
+            7: { speed: 80, score: 8 },
+            8: { speed: 60, score: 9 },
+            9: { speed: 40, score: 10 }
+        };
 
         // Touch control elements
         const upButton = document.getElementById('up-button');
@@ -236,11 +334,11 @@
             dy = 0;
             score = 0;
             scoreBoard.textContent = `Score: ${score}`;
+            highScoreBoard.textContent = `High Score: ${highScore}`;
             messageBox.style.display = 'none';
             llmResponseDiv.textContent = '';
             getSnakeWordsButton.disabled = false;
             changingDirection = false;
-            gameSpeed = 150;
             gameOverReason = '';
             createFood();
             if (gameInterval) clearInterval(gameInterval);
@@ -304,14 +402,9 @@
             snake.unshift(head);
             const didEatFood = head.x === food.x && head.y === food.y;
             if (didEatFood) {
-                score += 10;
+                score += scoreIncrement; // Use dynamic score increment
                 scoreBoard.textContent = `Score: ${score}`;
                 createFood();
-                if (gameSpeed > 50) {
-                    gameSpeed -= 5;
-                    clearInterval(gameInterval);
-                    gameInterval = setInterval(gameLoop, gameSpeed);
-                }
             } else {
                 snake.pop();
             }
@@ -321,6 +414,11 @@
             for (let i = 4; i < snake.length; i++) {
                 if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
                     gameOverReason = 'hit itself';
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('snakeHighScore', highScore);
+                        highScoreBoard.textContent = `High Score: ${highScore}`;
+                    }
                     return true;
                 }
             }
@@ -330,6 +428,11 @@
             const hitBottomWall = snake[0].y >= canvas.height;
             if (hitLeftWall || hitRightWall || hitTopWall || hitBottomWall) {
                 gameOverReason = 'hit a wall';
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('snakeHighScore', highScore);
+                    highScoreBoard.textContent = `High Score: ${highScore}`;
+                }
                 return true;
             }
             return false;
@@ -341,7 +444,7 @@
             messageBox.style.display = 'block';
         }
 
-        // --- Refactored Keyboard Input Handler ---
+        // --- Keyboard Input Handler ---
         document.addEventListener('keydown', (event) => {
             const keyPressed = event.key;
             const goingUp = dy === -gridSize;
@@ -353,7 +456,7 @@
                 if (keyPressed === 'Enter') {
                     restartButton.click();
                 }
-            } else {
+            } else if (gameContainer.style.display === 'block') {
                 if (changingDirection) return;
                 changingDirection = true;
 
@@ -372,7 +475,6 @@
                 }
             }
         });
-        // --- End Refactored Keyboard Input Handler ---
 
         let touchStartX = 0;
         let touchStartY = 0;
@@ -439,7 +541,21 @@
             if (dx !== -gridSize) { dx = gridSize; dy = 0; }
         });
 
-        restartButton.addEventListener('click', initGame);
+        restartButton.addEventListener('click', () => {
+            gameContainer.style.display = 'none';
+            startScreen.style.display = 'flex';
+        });
+
+        startButton.addEventListener('click', () => {
+            const selectedLevel = levelSelect.value;
+            gameSpeed = levels[selectedLevel].speed;
+            scoreIncrement = levels[selectedLevel].score;
+
+            startScreen.style.display = 'none';
+            gameContainer.style.display = 'flex';
+            initGame();
+        });
+
 
         getSnakeWordsButton.addEventListener('click', async () => {
             llmResponseDiv.innerHTML = '<span class="loading-spinner"></span> Generating...';
@@ -500,8 +616,16 @@
             getSnakeWordsButton.disabled = false;
         });
 
-        window.addEventListener('resize', initGame);
-        window.onload = initGame;
+        window.addEventListener('resize', () => {
+            if(gameContainer.style.display === 'flex') {
+                initGame();
+            }
+        });
+        
+        window.onload = () => {
+            highScoreBoard.textContent = `High Score: ${highScore}`;
+            startScreen.style.display = 'flex';
+        };
     </script>
 </body>
 </html>
