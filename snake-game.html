@@ -181,6 +181,45 @@
         #start-screen button:hover {
             background-color: #3182ce;
         }
+        #global-leaderboard {
+            margin-top: 2rem;
+            font-size: 1rem;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 2px solid #4a5568;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: left;
+        }
+        #global-leaderboard h2 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        #global-leaderboard ol {
+            list-style-type: decimal;
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+        #global-leaderboard li {
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed #4a5568;
+            display: flex;
+            justify-content: space-between;
+        }
+        #global-leaderboard li:last-child {
+            border-bottom: none;
+        }
+        .user-id {
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .leaderboard-loading {
+            text-align: center;
+            font-style: italic;
+            color: #a0aec0;
+        }
         @media (max-width: 600px) {
             #game-container {
                 padding: 1rem;
@@ -203,12 +242,22 @@
                 font-size: 1rem;
                 padding: 0.75rem 1.5rem;
             }
+            #global-leaderboard h2 {
+                font-size: 1rem;
+            }
+            #global-leaderboard li {
+                font-size: 0.9rem;
+            }
+            .user-id {
+                font-size: 0.7rem;
+            }
         }
     </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
     <div id="start-screen">
         <h1>Retro Snake</h1>
+        <div id="auth-status" class="text-sm text-gray-400 mb-4">Authenticating...</div>
         <div>
             <label for="level-select">Choose Level:</label>
             <select id="level-select">
@@ -224,6 +273,11 @@
             </select>
         </div>
         <button id="start-button">Start Game</button>
+        <div id="global-leaderboard">
+            <h2>Global High Scores</h2>
+            <div class="leaderboard-loading">Loading...</div>
+            <ol id="leaderboard-list"></ol>
+        </div>
     </div>
 
     <div id="game-container" style="display: none;">
@@ -250,7 +304,127 @@
         <a href="index.html" class="button-link">Back to Main Page</a>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration and Initialization
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const __initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+
+        if (Object.keys(firebaseConfig).length > 0) {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            // Anonymous authentication
+            const signIn = async () => {
+                const authStatusDiv = document.getElementById('auth-status');
+                try {
+                    authStatusDiv.textContent = 'Signing in...';
+                    if (__initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    authStatusDiv.textContent = `User: ${auth.currentUser.uid.substring(0, 8)}...`;
+                } catch (error) {
+                    console.error("Authentication Error:", error);
+                    authStatusDiv.textContent = 'Authentication Failed';
+                }
+            };
+            signIn();
+
+            // Firestore High Score Logic
+            const saveHighScore = async (score, level) => {
+                const userId = auth.currentUser?.uid;
+                if (!userId) {
+                    console.error("User not authenticated.");
+                    return;
+                }
+                const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
+                try {
+                    await addDoc(highScoresCol, {
+                        userId: userId,
+                        score: score,
+                        level: parseInt(level),
+                        timestamp: new Date()
+                    });
+                    console.log("High score saved successfully!");
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                }
+            };
+            
+            // Listen for high score updates in real-time
+            const getHighScores = () => {
+                const leaderboardList = document.getElementById('leaderboard-list');
+                const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
+                const q = query(highScoresCol, where('score', '>', 0)); // No orderBy due to index requirements
+                onSnapshot(q, (querySnapshot) => {
+                    const scores = [];
+                    querySnapshot.forEach((doc) => {
+                        scores.push(doc.data());
+                    });
+                    scores.sort((a, b) => b.score - a.score); // Sort locally after fetching
+                    leaderboardList.innerHTML = ''; // Clear the list
+                    scores.slice(0, 10).forEach((scoreData, index) => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
+                        leaderboardList.appendChild(li);
+                    });
+                    document.querySelector('.leaderboard-loading').style.display = 'none';
+                });
+            };
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    console.log("User authenticated:", user.uid);
+                    getHighScores();
+                }
+            });
+
+            // Re-define gameOver() to save score to Firestore
+            window.gameOver = function() {
+                // Check if snake hits itself
+                for (let i = 4; i < snake.length; i++) {
+                    if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
+                        gameOverReason = 'hit itself';
+                        if (score > highScore) {
+                            highScore = score;
+                            localStorage.setItem('snakeHighScore', highScore);
+                            highScoreBoard.textContent = `High Score: ${highScore}`;
+                            saveHighScore(highScore, currentLevel); // Save to Firestore
+                        }
+                        return true;
+                    }
+                }
+                // Check if snake hits walls
+                const hitLeftWall = snake[0].x < 0;
+                const hitRightWall = snake[0].x >= canvas.width;
+                const hitTopWall = snake[0].y < 0;
+                const hitBottomWall = snake[0].y >= canvas.height;
+                if (hitLeftWall || hitRightWall || hitTopWall || hitBottomWall) {
+                    gameOverReason = 'hit a wall';
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('snakeHighScore', highScore);
+                        highScoreBoard.textContent = `High Score: ${highScore}`;
+                        saveHighScore(highScore, currentLevel); // Save to Firestore
+                    }
+                    return true;
+                }
+                return false;
+            };
+
+        } else {
+            document.getElementById('auth-status').textContent = 'Firebase not configured.';
+            console.error("Firebase configuration is missing.");
+        }
+        
+        // Game Logic and UI elements (unmodified from previous version)
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreBoard = document.getElementById('score-board');
@@ -369,7 +543,7 @@
 
         function gameLoop() {
             changingDirection = false;
-            if (gameOver()) {
+            if (window.gameOver()) { // Use window.gameOver to call the updated function
                 showMessage('Game Over!', 'red');
                 clearInterval(gameInterval);
                 return;
@@ -415,35 +589,7 @@
                 snake.pop();
             }
         }
-
-        function gameOver() {
-            for (let i = 4; i < snake.length; i++) {
-                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
-                    gameOverReason = 'hit itself';
-                    if (score > highScore) {
-                        highScore = score;
-                        localStorage.setItem('snakeHighScore', highScore);
-                        highScoreBoard.textContent = `High Score: ${highScore}`;
-                    }
-                    return true;
-                }
-            }
-            const hitLeftWall = snake[0].x < 0;
-            const hitRightWall = snake[0].x >= canvas.width;
-            const hitTopWall = snake[0].y < 0;
-            const hitBottomWall = snake[0].y >= canvas.height;
-            if (hitLeftWall || hitRightWall || hitTopWall || hitBottomWall) {
-                gameOverReason = 'hit a wall';
-                if (score > highScore) {
-                    highScore = score;
-                    localStorage.setItem('snakeHighScore', highScore);
-                    highScoreBoard.textContent = `High Score: ${highScore}`;
-                }
-                return true;
-            }
-            return false;
-        }
-
+        
         function showMessage(msg, color) {
             gameMessage.textContent = msg + ` Final Score: ${score}`;
             gameMessage.style.color = color;
@@ -551,12 +697,10 @@
             if (dx !== -gridSize) { dx = gridSize; dy = 0; }
         });
 
-        // "Play Again" button in the message box now restarts the game directly
         restartButton.addEventListener('click', () => {
             initGame();
         });
 
-        // "Start Game" button on the start screen
         startButton.addEventListener('click', () => {
             currentLevel = levelSelect.value;
             startScreen.style.display = 'none';
