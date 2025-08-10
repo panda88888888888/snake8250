@@ -311,8 +311,15 @@
 
         // --- Firebase Configuration - DO NOT PASTE KEYS HERE ---
         // The Canvas environment automatically provides these variables.
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const __initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+        const firebaseConfig = {
+            apiKey: "AIzaSyD0WNmih4RJsfzSt5CY1CgSvKKjjdJHRxA",
+            authDomain: "snake-game8250.firebaseapp.com",
+            projectId: "snake-game8250",
+            storageBucket: "snake-game8250.firebasestorage.app",
+            messagingSenderId: "258711325032",
+            appId: "1:258711325032:web:fe63c5b554d5882d5baedd",
+            measurementId: "G-DWWGGP7TPV"
+        };
         // ----------------------------------------------------
 
         // Initialize Firebase
