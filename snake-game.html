@@ -306,38 +306,39 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration and Initialization
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const __initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+        const firebaseConfig = {
+            apiKey: "AIzaSyD0WNmih4RJsfzSt5CY1CgSvKKjjdJHRxA",
+            authDomain: "snake-game8250.firebaseapp.com",
+            projectId: "snake-game8250",
+            storageBucket: "snake-game8250.firebasestorage.app",
+            messagingSenderId: "258711325032",
+            appId: "1:258711325032:web:fe63c5b554d5882d5baedd",
+            measurementId: "G-DWWGGP7TPV"
+        };
+        // ----------------------------------------------------
 
-        if (Object.keys(firebaseConfig).length > 0) {
+        // Initialize Firebase
+        if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
+            const appId = firebaseConfig.projectId;
 
-            // Anonymous authentication
             const signIn = async () => {
                 const authStatusDiv = document.getElementById('auth-status');
                 try {
                     authStatusDiv.textContent = 'Signing in...';
-                    if (__initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    await signInAnonymously(auth);
                     authStatusDiv.textContent = `User: ${auth.currentUser.uid.substring(0, 8)}...`;
                 } catch (error) {
                     console.error("Authentication Error:", error);
                     authStatusDiv.textContent = 'Authentication Failed';
                 }
             };
-            signIn();
-
-            // Firestore High Score Logic
+            
             const saveHighScore = async (score, level) => {
                 const userId = auth.currentUser?.uid;
                 if (!userId) {
@@ -358,18 +359,17 @@
                 }
             };
             
-            // Listen for high score updates in real-time
             const getHighScores = () => {
                 const leaderboardList = document.getElementById('leaderboard-list');
                 const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
-                const q = query(highScoresCol, where('score', '>', 0)); // No orderBy due to index requirements
+                const q = query(highScoresCol);
                 onSnapshot(q, (querySnapshot) => {
                     const scores = [];
                     querySnapshot.forEach((doc) => {
                         scores.push(doc.data());
                     });
-                    scores.sort((a, b) => b.score - a.score); // Sort locally after fetching
-                    leaderboardList.innerHTML = ''; // Clear the list
+                    scores.sort((a, b) => b.score - a.score);
+                    leaderboardList.innerHTML = '';
                     scores.slice(0, 10).forEach((scoreData, index) => {
                         const li = document.createElement('li');
                         li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
@@ -383,48 +383,19 @@
                 if (user) {
                     console.log("User authenticated:", user.uid);
                     getHighScores();
+                } else {
+                    console.log("User is not authenticated. Starting anonymous sign-in.");
+                    signIn();
                 }
             });
 
-            // Re-define gameOver() to save score to Firestore
-            window.gameOver = function() {
-                // Check if snake hits itself
-                for (let i = 4; i < snake.length; i++) {
-                    if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
-                        gameOverReason = 'hit itself';
-                        if (score > highScore) {
-                            highScore = score;
-                            localStorage.setItem('snakeHighScore', highScore);
-                            highScoreBoard.textContent = `High Score: ${highScore}`;
-                            saveHighScore(highScore, currentLevel); // Save to Firestore
-                        }
-                        return true;
-                    }
-                }
-                // Check if snake hits walls
-                const hitLeftWall = snake[0].x < 0;
-                const hitRightWall = snake[0].x >= canvas.width;
-                const hitTopWall = snake[0].y < 0;
-                const hitBottomWall = snake[0].y >= canvas.height;
-                if (hitLeftWall || hitRightWall || hitTopWall || hitBottomWall) {
-                    gameOverReason = 'hit a wall';
-                    if (score > highScore) {
-                        highScore = score;
-                        localStorage.setItem('snakeHighScore', highScore);
-                        highScoreBoard.textContent = `High Score: ${highScore}`;
-                        saveHighScore(highScore, currentLevel); // Save to Firestore
-                    }
-                    return true;
-                }
-                return false;
-            };
-
+            window.saveHighScoreToFirebase = saveHighScore;
+            
         } else {
             document.getElementById('auth-status').textContent = 'Firebase not configured.';
             console.error("Firebase configuration is missing.");
         }
         
-        // Game Logic and UI elements (unmodified from previous version)
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreBoard = document.getElementById('score-board');
@@ -440,7 +411,6 @@
         const startButton = document.getElementById('start-button');
         const levelSelect = document.getElementById('level-select');
 
-        // Game settings
         const gridSize = 20;
         let tileCountX;
         let tileCountY;
@@ -455,9 +425,8 @@
         let changingDirection = false;
         let gameOverReason = '';
         let highScore = localStorage.getItem('snakeHighScore') || 0;
-        let currentLevel = 5; // Default level
+        let currentLevel = 5;
 
-        // Level configuration data
         const levels = {
             1: { speed: 200, score: 2 },
             2: { speed: 180, score: 3 },
@@ -470,13 +439,11 @@
             9: { speed: 40, score: 10 }
         };
 
-        // Touch control elements
         const upButton = document.getElementById('up-button');
         const downButton = document.getElementById('down-button');
         const leftButton = document.getElementById('left-button');
         const rightButton = document.getElementById('right-button');
 
-        // --- Core Game Functions ---
         function setCanvasSize() {
             const minCanvasDimension = 300;
             const maxCanvasDimension = 400;
@@ -516,7 +483,6 @@
             changingDirection = false;
             gameOverReason = '';
             
-            // Set speed and score based on the current level
             gameSpeed = levels[currentLevel].speed;
             scoreIncrement = levels[currentLevel].score;
 
@@ -543,7 +509,7 @@
 
         function gameLoop() {
             changingDirection = false;
-            if (window.gameOver()) { // Use window.gameOver to call the updated function
+            if (gameOver()) {
                 showMessage('Game Over!', 'red');
                 clearInterval(gameInterval);
                 return;
@@ -590,13 +556,46 @@
             }
         }
         
+        function gameOver() {
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
+                    gameOverReason = 'hit itself';
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('snakeHighScore', highScore);
+                        highScoreBoard.textContent = `High Score: ${highScore}`;
+                        if (typeof window.saveHighScoreToFirebase === 'function') {
+                            window.saveHighScoreToFirebase(highScore, currentLevel);
+                        }
+                    }
+                    return true;
+                }
+            }
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x >= canvas.width;
+            const hitTopWall = snake[0].y < 0;
+            const hitBottomWall = snake[0].y >= canvas.height;
+            if (hitLeftWall || hitRightWall || hitTopWall || hitBottomWall) {
+                gameOverReason = 'hit a wall';
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('snakeHighScore', highScore);
+                    highScoreBoard.textContent = `High Score: ${highScore}`;
+                    if (typeof window.saveHighScoreToFirebase === 'function') {
+                        window.saveHighScoreToFirebase(highScore, currentLevel);
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
         function showMessage(msg, color) {
             gameMessage.textContent = msg + ` Final Score: ${score}`;
             gameMessage.style.color = color;
             messageBox.style.display = 'block';
         }
 
-        // --- Keyboard Input Handler ---
         document.addEventListener('keydown', (event) => {
             const keyPressed = event.key;
             const goingUp = dy === -gridSize;
