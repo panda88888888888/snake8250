@@ -309,7 +309,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase Configuration - DO NOT PASTE KEYS HERE ---
+        // --- Firebase Configuration - YOU MUST PASTE YOUR CONFIG HERE ---
         const firebaseConfig = {
             apiKey: "AIzaSyD0WNmih4RJsfzSt5CY1CgSvKKjjdJHRxA",
             authDomain: "snake-game8250.firebaseapp.com",
@@ -325,7 +325,7 @@
         let auth, db, appId, saveHighScoreToFirebase;
 
         try {
-            if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
+            if (firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId) {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -336,11 +336,34 @@
                     try {
                         authStatusDiv.textContent = 'Signing in...';
                         await signInAnonymously(auth);
+                        // Once signed in, we can update the status
                         authStatusDiv.textContent = `User: ${auth.currentUser.uid.substring(0, 8)}...`;
+                        getHighScores();
                     } catch (error) {
                         console.error("Authentication Error:", error);
                         authStatusDiv.textContent = 'Authentication Failed';
                     }
+                };
+
+                const getHighScores = () => {
+                    const leaderboardList = document.getElementById('leaderboard-list');
+                    const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
+                    const q = query(highScoresCol);
+                    onSnapshot(q, (querySnapshot) => {
+                        const scores = [];
+                        querySnapshot.forEach((doc) => {
+                            scores.push(doc.data());
+                        });
+                        scores.sort((a, b) => b.score - a.score);
+                        leaderboardList.innerHTML = '';
+                        scores.slice(0, 10).forEach((scoreData, index) => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
+                            leaderboardList.appendChild(li);
+                        });
+                        const loadingDiv = document.querySelector('.leaderboard-loading');
+                        if (loadingDiv) loadingDiv.style.display = 'none';
+                    });
                 };
                 
                 saveHighScoreToFirebase = async (score, level) => {
@@ -363,32 +386,16 @@
                     }
                 };
                 
-                const getHighScores = () => {
-                    const leaderboardList = document.getElementById('leaderboard-list');
-                    const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
-                    const q = query(highScoresCol);
-                    onSnapshot(q, (querySnapshot) => {
-                        const scores = [];
-                        querySnapshot.forEach((doc) => {
-                            scores.push(doc.data());
-                        });
-                        scores.sort((a, b) => b.score - a.score);
-                        leaderboardList.innerHTML = '';
-                        scores.slice(0, 10).forEach((scoreData, index) => {
-                            const li = document.createElement('li');
-                            li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
-                            leaderboardList.appendChild(li);
-                        });
-                        document.querySelector('.leaderboard-loading').style.display = 'none';
-                    });
-                };
-
+                // This listener ensures authentication is attempted right away
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         console.log("User authenticated:", user.uid);
+                        // User is already signed in (from a previous session), so just get scores
+                        const authStatusDiv = document.getElementById('auth-status');
+                        authStatusDiv.textContent = `User: ${user.uid.substring(0, 8)}...`;
                         getHighScores();
                     } else {
-                        console.log("User is not authenticated. Starting anonymous sign-in.");
+                        console.log("No user signed in. Attempting anonymous sign-in.");
                         signIn();
                     }
                 });
@@ -781,4 +788,9 @@
         });
         
         window.onload = () => {
-            highScoreBoard.textContent = `High Score: ${highSc
+            highScoreBoard.textContent = `High Score: ${highScore}`;
+            startScreen.style.display = 'flex';
+        };
+    </script>
+</body>
+</html>
