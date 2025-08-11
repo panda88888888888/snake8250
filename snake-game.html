@@ -310,7 +310,6 @@
         import { getFirestore, collection, addDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration - DO NOT PASTE KEYS HERE ---
-        // The Canvas environment automatically provides these variables.
         const firebaseConfig = {
             apiKey: "AIzaSyD0WNmih4RJsfzSt5CY1CgSvKKjjdJHRxA",
             authDomain: "snake-game8250.firebaseapp.com",
@@ -323,79 +322,86 @@
         // ----------------------------------------------------
 
         // Initialize Firebase
-        if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            const appId = firebaseConfig.projectId;
+        let auth, db, appId, saveHighScoreToFirebase;
 
-            const signIn = async () => {
-                const authStatusDiv = document.getElementById('auth-status');
-                try {
-                    authStatusDiv.textContent = 'Signing in...';
-                    await signInAnonymously(auth);
-                    authStatusDiv.textContent = `User: ${auth.currentUser.uid.substring(0, 8)}...`;
-                } catch (error) {
-                    console.error("Authentication Error:", error);
-                    authStatusDiv.textContent = 'Authentication Failed';
-                }
-            };
-            
-            const saveHighScore = async (score, level) => {
-                const userId = auth.currentUser?.uid;
-                if (!userId) {
-                    console.error("User not authenticated.");
-                    return;
-                }
-                const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
-                try {
-                    await addDoc(highScoresCol, {
-                        userId: userId,
-                        score: score,
-                        level: parseInt(level),
-                        timestamp: new Date()
+        try {
+            if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = firebaseConfig.projectId;
+                
+                const signIn = async () => {
+                    const authStatusDiv = document.getElementById('auth-status');
+                    try {
+                        authStatusDiv.textContent = 'Signing in...';
+                        await signInAnonymously(auth);
+                        authStatusDiv.textContent = `User: ${auth.currentUser.uid.substring(0, 8)}...`;
+                    } catch (error) {
+                        console.error("Authentication Error:", error);
+                        authStatusDiv.textContent = 'Authentication Failed';
+                    }
+                };
+                
+                saveHighScoreToFirebase = async (score, level) => {
+                    const userId = auth.currentUser?.uid;
+                    if (!userId) {
+                        console.error("User not authenticated.");
+                        return;
+                    }
+                    const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
+                    try {
+                        await addDoc(highScoresCol, {
+                            userId: userId,
+                            score: score,
+                            level: parseInt(level),
+                            timestamp: new Date()
+                        });
+                        console.log("High score saved successfully!");
+                    } catch (e) {
+                        console.error("Error adding document: ", e);
+                    }
+                };
+                
+                const getHighScores = () => {
+                    const leaderboardList = document.getElementById('leaderboard-list');
+                    const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
+                    const q = query(highScoresCol);
+                    onSnapshot(q, (querySnapshot) => {
+                        const scores = [];
+                        querySnapshot.forEach((doc) => {
+                            scores.push(doc.data());
+                        });
+                        scores.sort((a, b) => b.score - a.score);
+                        leaderboardList.innerHTML = '';
+                        scores.slice(0, 10).forEach((scoreData, index) => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
+                            leaderboardList.appendChild(li);
+                        });
+                        document.querySelector('.leaderboard-loading').style.display = 'none';
                     });
-                    console.log("High score saved successfully!");
-                } catch (e) {
-                    console.error("Error adding document: ", e);
-                }
-            };
-            
-            const getHighScores = () => {
-                const leaderboardList = document.getElementById('leaderboard-list');
-                const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
-                const q = query(highScoresCol);
-                onSnapshot(q, (querySnapshot) => {
-                    const scores = [];
-                    querySnapshot.forEach((doc) => {
-                        scores.push(doc.data());
-                    });
-                    scores.sort((a, b) => b.score - a.score);
-                    leaderboardList.innerHTML = '';
-                    scores.slice(0, 10).forEach((scoreData, index) => {
-                        const li = document.createElement('li');
-                        li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
-                        leaderboardList.appendChild(li);
-                    });
-                    document.querySelector('.leaderboard-loading').style.display = 'none';
+                };
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        console.log("User authenticated:", user.uid);
+                        getHighScores();
+                    } else {
+                        console.log("User is not authenticated. Starting anonymous sign-in.");
+                        signIn();
+                    }
                 });
-            };
 
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    console.log("User authenticated:", user.uid);
-                    getHighScores();
-                } else {
-                    console.log("User is not authenticated. Starting anonymous sign-in.");
-                    signIn();
-                }
-            });
-
-            window.saveHighScoreToFirebase = saveHighScore;
-            
-        } else {
-            document.getElementById('auth-status').textContent = 'Firebase not configured.';
-            console.error("Firebase configuration is missing.");
+                window.saveHighScoreToFirebase = saveHighScoreToFirebase;
+                
+            } else {
+                document.getElementById('auth-status').textContent = 'Firebase not configured.';
+                console.error("Firebase configuration is missing.");
+            }
+        } catch (e) {
+            console.error("Firebase Initialization Error:", e);
+            document.getElementById('auth-status').textContent = 'Firebase Initialization Failed.';
         }
         
         const canvas = document.getElementById('gameCanvas');
@@ -775,9 +781,4 @@
         });
         
         window.onload = () => {
-            highScoreBoard.textContent = `High Score: ${highScore}`;
-            startScreen.style.display = 'flex';
-        };
-    </script>
-</body>
-</html>
+            highScoreBoard.textContent = `High Score: ${highSc
