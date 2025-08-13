@@ -582,6 +582,11 @@
                         if (typeof window.saveHighScoreToFirebase === 'function') {
                             window.saveHighScoreToFirebase(highScore, currentLevel);
                         }
+                    } else {
+                         // Even if not a personal high score, save if it's high enough to be on the leaderboard
+                        if (typeof window.saveHighScoreToFirebase === 'function' && score > 0) {
+                            window.saveHighScoreToFirebase(score, currentLevel);
+                        }
                     }
                     return true;
                 }
@@ -598,6 +603,10 @@
                     highScoreBoard.textContent = `High Score: ${highScore}`;
                     if (typeof window.saveHighScoreToFirebase === 'function') {
                         window.saveHighScoreToFirebase(highScore, currentLevel);
+                    }
+                } else {
+                    if (typeof window.saveHighScoreToFirebase === 'function' && score > 0) {
+                        window.saveHighScoreToFirebase(score, currentLevel);
                     }
                 }
                 return true;
