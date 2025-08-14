@@ -308,8 +308,9 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
-        // --- Firebase Configuration - YOU MUST PASTE YOUR CONFIG HERE ---
+        // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyD0WNmih4RJsfzSt5CY1CgSvKKjjdJHRxA",
             authDomain: "snake-game8250.firebaseapp.com",
@@ -321,8 +322,8 @@
         };
         // ----------------------------------------------------
 
-        // Initialize Firebase
         let auth, db, appId, saveHighScoreToFirebase;
+        let analytics, logEventFunction;
 
         try {
             if (firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId) {
@@ -330,40 +331,30 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 appId = firebaseConfig.projectId;
-                
+
+                // Initialize Analytics
+                if (firebaseConfig.measurementId) {
+                    analytics = getAnalytics(app);
+                    logEventFunction = logEvent;
+                    console.log("Firebase Analytics initialized.");
+                } else {
+                    console.error("Firebase Analytics measurementId is missing.");
+                }
+
                 const signIn = async () => {
                     const authStatusDiv = document.getElementById('auth-status');
                     try {
                         authStatusDiv.textContent = 'Signing in...';
                         await signInAnonymously(auth);
-                        // Once signed in, we can update the status
                         authStatusDiv.textContent = `User: ${auth.currentUser.uid.substring(0, 8)}...`;
                         getHighScores();
+                        if (logEventFunction) {
+                            logEventFunction(analytics, 'game_page_loaded');
+                        }
                     } catch (error) {
                         console.error("Authentication Error:", error);
                         authStatusDiv.textContent = 'Authentication Failed';
                     }
-                };
-
-                const getHighScores = () => {
-                    const leaderboardList = document.getElementById('leaderboard-list');
-                    const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
-                    const q = query(highScoresCol);
-                    onSnapshot(q, (querySnapshot) => {
-                        const scores = [];
-                        querySnapshot.forEach((doc) => {
-                            scores.push(doc.data());
-                        });
-                        scores.sort((a, b) => b.score - a.score);
-                        leaderboardList.innerHTML = '';
-                        scores.slice(0, 10).forEach((scoreData, index) => {
-                            const li = document.createElement('li');
-                            li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
-                            leaderboardList.appendChild(li);
-                        });
-                        const loadingDiv = document.querySelector('.leaderboard-loading');
-                        if (loadingDiv) loadingDiv.style.display = 'none';
-                    });
                 };
                 
                 saveHighScoreToFirebase = async (score, level) => {
@@ -386,11 +377,30 @@
                     }
                 };
                 
-                // This listener ensures authentication is attempted right away
+                const getHighScores = () => {
+                    const leaderboardList = document.getElementById('leaderboard-list');
+                    const highScoresCol = collection(db, `artifacts/${appId}/public/data/highscores`);
+                    const q = query(highScoresCol);
+                    onSnapshot(q, (querySnapshot) => {
+                        const scores = [];
+                        querySnapshot.forEach((doc) => {
+                            scores.push(doc.data());
+                        });
+                        scores.sort((a, b) => b.score - a.score);
+                        leaderboardList.innerHTML = '';
+                        scores.slice(0, 10).forEach((scoreData, index) => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<span>${index + 1}. Score: ${scoreData.score}</span> <span class="user-id">ID: ${scoreData.userId.substring(0, 6)}...</span>`;
+                            leaderboardList.appendChild(li);
+                        });
+                        const loadingDiv = document.querySelector('.leaderboard-loading');
+                        if (loadingDiv) loadingDiv.style.display = 'none';
+                    });
+                };
+
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         console.log("User authenticated:", user.uid);
-                        // User is already signed in (from a previous session), so just get scores
                         const authStatusDiv = document.getElementById('auth-status');
                         authStatusDiv.textContent = `User: ${user.uid.substring(0, 8)}...`;
                         getHighScores();
@@ -582,11 +592,16 @@
                         if (typeof window.saveHighScoreToFirebase === 'function') {
                             window.saveHighScoreToFirebase(highScore, currentLevel);
                         }
+                        if (typeof window.logEvent === 'function') {
+                            window.logEvent(window.analytics, 'high_score_submitted', { score: highScore, level: currentLevel });
+                        }
                     } else {
-                         // Even if not a personal high score, save if it's high enough to be on the leaderboard
                         if (typeof window.saveHighScoreToFirebase === 'function' && score > 0) {
                             window.saveHighScoreToFirebase(score, currentLevel);
                         }
+                    }
+                    if (typeof window.logEvent === 'function') {
+                        window.logEvent(window.analytics, 'game_over', { final_score: score, reason: gameOverReason, level: currentLevel });
                     }
                     return true;
                 }
@@ -604,10 +619,16 @@
                     if (typeof window.saveHighScoreToFirebase === 'function') {
                         window.saveHighScoreToFirebase(highScore, currentLevel);
                     }
+                    if (typeof window.logEvent === 'function') {
+                        window.logEvent(window.analytics, 'high_score_submitted', { score: highScore, level: currentLevel });
+                    }
                 } else {
                     if (typeof window.saveHighScoreToFirebase === 'function' && score > 0) {
                         window.saveHighScoreToFirebase(score, currentLevel);
                     }
+                }
+                if (typeof window.logEvent === 'function') {
+                    window.logEvent(window.analytics, 'game_over', { final_score: score, reason: gameOverReason, level: currentLevel });
                 }
                 return true;
             }
@@ -729,6 +750,10 @@
             startScreen.style.display = 'none';
             gameContainer.style.display = 'flex';
             initGame();
+            if (typeof logEventFunction === 'function') {
+                logEventFunction(analytics, 'game_started', { level: currentLevel });
+                logEventFunction(analytics, 'level_chosen', { level: currentLevel });
+            }
         });
 
         getSnakeWordsButton.addEventListener('click', async () => {
