@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcade Games</title>
+    <title>About - Retro Arcade</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
@@ -24,27 +24,25 @@
             padding: 3rem 2rem;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             max-width: 90vw;
+            line-height: 1.5;
         }
         h1 {
             font-size: 2.25rem;
-            margin-bottom: 2rem;
-        }
-        ul {
-            list-style: none;
-            padding: 0;
-            margin-top: 2rem;
-        }
-        li {
             margin-bottom: 1.5rem;
+        }
+        p {
+            font-size: 1rem;
+            margin-bottom: 1rem;
         }
         a {
             display: inline-block;
             background-color: #4299e1;
             color: white;
-            padding: 1rem 2rem;
+            padding: 0.75rem 1.5rem;
             border-radius: 0.75rem;
             text-decoration: none;
-            font-size: 1.25rem;
+            font-size: 1rem;
+            margin-top: 1.5rem;
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
@@ -56,29 +54,28 @@
             h1 {
                 font-size: 1.75rem;
             }
-            a {
-                font-size: 1rem;
-                padding: 0.75rem 1.5rem;
+            p {
+                font-size: 0.875rem;
             }
-            .container {
-                padding: 2rem 1rem;
+            a {
+                font-size: 0.875rem;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Retro Arcade</h1>
-        <p>Choose your game!</p>
-        <ul>
-            <li><a href="snake-game.html">🐍 Classic Snake</a></li>
-            <li><a href="jet-fighter-game.html">✈️ Jet Fighter (Coming Soon)</a></li>
-        </ul>
-        <hr class="my-6 border-gray-600">
-        <div class="text-sm">
-            <a href="about.html" class="inline-block mt-4 text-sm bg-gray-600 hover:bg-gray-700 px-4 py-2">About</a>
-            <a href="privacy.html" class="inline-block mt-4 text-sm bg-gray-600 hover:bg-gray-700 px-4 py-2">Privacy Policy</a>
-        </div>
+        <h1>About Our Games</h1>
+        <p>
+            Welcome to Retro Arcade! This website is a simple project created to host classic arcade-style games. Our goal is to provide a fun and nostalgic gaming experience right in your browser.
+        </p>
+        <p>
+            The Classic Snake game is our first project, featuring levels, local high scores, and a global leaderboard powered by Firebase. We are continuously working on new games and features.
+        </p>
+        <p>
+            This website and its games were built using HTML, CSS (with Tailwind CSS), and JavaScript.
+        </p>
+        <a href="index.html">Back to Main Page</a>
     </div>
 </body>
 </html>
